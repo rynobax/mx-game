@@ -1,8 +1,10 @@
 #include "LSM6DSLSensor.h"
+#include "LIS2MDLSensor.h"
 #include "src/MadgwickAHRS/MadgwickAHRS.h"
 
 DevI2C *i2c;
 LSM6DSLSensor *sensor;
+LIS2MDLSensor *lis2mdl;
 Madgwick *madgwick;
 
 // Madgwick wants:
@@ -29,6 +31,8 @@ void setup()
     // init Gyroscope/Accelerator
     i2c = new DevI2C(D14, D15);
     sensor = new LSM6DSLSensor(*i2c, D4, D5);
+    lis2mdl = new LIS2MDLSensor(*i2c);
+    lis2mdl->init(NULL);
     sensor->init(NULL);
     sensor->enableAccelerator();
     sensor->enableGyroscope();
@@ -60,6 +64,7 @@ void loop()
 
 void doStuff()
 {
+    // Accelerometer
     int asi[3];
     sensor->getXAxes(asi);
     float as[3];
@@ -73,6 +78,7 @@ void doStuff()
     float ay = as[1];
     float az = as[2];
 
+    // Gyroscope
     int gsi[3];
     sensor->getGAxes(gsi);
     float gs[3];
@@ -86,6 +92,20 @@ void doStuff()
     float gy = gs[1];
     float gz = gs[2];
 
+    // Magnetometer
+    int msi[3];
+    lis2mdl->getMAxes(msi);
+    float ms[3];
+    for (int i = 0; i < 3; i++)
+    {
+        // Convert from mGauss to uTesla
+        ms[i] = msi[i] / 10.0;
+    }
+
+    float mx = ms[0];
+    float my = ms[1];
+    float mz = ms[2];
+
     bool should_print = print_counter % FPS == 0;
 
     if (should_print)
@@ -93,9 +113,10 @@ void doStuff()
         Serial.printf("execution_time: %d\n", execution_time);
         Serial.printf("Accl: x: %5.2f\ty: %5.2f\tz: %5.2f\n", ax, ay, az);
         Serial.printf("Gyro: x: %5.2f\ty: %5.2f\tz: %5.2f\n", gx, gy, gz);
+        Serial.printf("Magn: x: %5.2f\ty: %5.2f\tz: %5.2f\n", mx, my, mz);
     }
 
-    madgwick->updateIMU(gx, gy, gz, ax, ay, az);
+    madgwick->update(gx, gy, gz, ax, ay, az, mx, my, mz);
 
     float roll = madgwick->getRoll();
     float pitch = madgwick->getPitch();
